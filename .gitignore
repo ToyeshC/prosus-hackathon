@@ -5,6 +5,12 @@ dist/
 build/
 .venv/
 .env
+.env.*
+results.tsv
+run.log
+agents/learnings.md
+agents/prompt_history/
+auto.txt
 .pytest_cache/
 .ruff_cache/
 *.jsonl
