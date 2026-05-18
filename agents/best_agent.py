@@ -311,8 +311,22 @@ def heuristic_decide(observation: dict[str, Any], notes: dict[str, Any]) -> list
     scenario = detect_scenario(observation, notes)
     service_summary = observation.get("service_summary") or {}
 
+    tourist_active_local = scenario == "tourist_season"
+    recent_alerts_text = " ".join(observation.get("alerts", [])).lower()
+    tourist_surge = tourist_active_local and (
+        "surge" in recent_alerts_text
+        or "festival" in recent_alerts_text
+        or "tourist" in recent_alerts_text
+    )
+    trend_growing = observation.get("customer_trend") == "Growing"
+    trend_declining = observation.get("customer_trend") == "Declining"
+
     target_staff = int(observation.get("staff_level", 8))
-    if rep in {"Poor", "Fair"}:
+    if tourist_surge and trend_growing:
+        target_staff = 10
+    elif tourist_active_local and trend_declining:
+        target_staff = 5
+    elif rep in {"Poor", "Fair"}:
         target_staff = max(target_staff, 7)
     elif int(observation.get("days_remaining", 0)) <= 2 and rep in {"Good", "Very Good", "Excellent"}:
         target_staff = max(5, target_staff - 2)
@@ -371,7 +385,11 @@ def heuristic_decide(observation: dict[str, Any], notes: dict[str, Any]) -> list
         active_set = set(desired_menu)
 
     price_mult = 1.0
-    if rep in {"Poor", "Fair"}:
+    if tourist_surge and rep not in {"Poor", "Fair"}:
+        price_mult = 1.18
+    elif tourist_active_local and trend_declining:
+        price_mult = 0.95
+    elif rep in {"Poor", "Fair"}:
         price_mult = 1.0
     elif scenario == "tourist_season" or trend == "Growing":
         price_mult = 1.15
@@ -392,7 +410,11 @@ def heuristic_decide(observation: dict[str, Any], notes: dict[str, Any]) -> list
             actions.append({"tool": "set_price", "args": {"dish": dish_name, "price": target_price}})
 
     marketing = 0
-    if cash < 4000:
+    if tourist_surge:
+        marketing = 280
+    elif tourist_active_local and trend_declining:
+        marketing = 50
+    elif cash < 4000:
         marketing = 0
     elif int(observation.get("days_remaining", 0)) <= 4:
         marketing = 0
