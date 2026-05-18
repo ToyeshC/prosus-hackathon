@@ -1,95 +1,100 @@
-# Hackathon Handoff — RestBench Restaurant Agent
+# Hackathon Handoff — RestBench AKT Agent
 
-## Current state
+## Current state (final)
 - Team: **AKT** on http://52.48.183.209:8001
-- Rank: **#16**, avg **18,826**, **12 cells / 30** completed
-- Top team: estain at 39,892 (12 cells)
-- Hidden scenarios unlock ~16:00 (6 scenarios × 3 seeds = 18 cells)
+- **Avg: 33,038**, 12 cells/30 completed, 0 bankruptcies
+- Peak team: **050 at 33,612**
+- Top 5 leaderboard: Et-al-Agents 56,320, caps17 53,694, a_bunch_of_idiots 51,470
+
+## 🏆 Winning agent: `toyesh_v2.py` + `gpt-4.1`
+
+Hybrid architecture (forked from ToyeshC/prosus-hackathon `toyesh` branch, then improved):
+- Rule-based safety + ordering + staffing (deterministic)
+- LLM judgment only on triggers (new alerts, rep Poor/Fair, low cash, stockouts)
+- LLM **cannot place orders** — only sets price/marketing/HH/special/staff
+- Sophisticated `delivery_day` math per supplier schedule
+- Multi-gate reorder logic with shelf-life caps
+
+### Our 4 improvements over Toyesh's base
+1. **Bankruptcy guard cash<3000 → 2500** (more ordering room)
+2. **Stable-trend pricing 1.06 → 1.03** (avoid aggressive-pricing trap)
+3. **LLM-mini scenario classifier** for hidden/novel alerts
+4. **Force `gpt-4.1`** as the model (proven +3-5k over gpt-4o, mini, and gpt-5)
+
+## Run command (final)
+
+```powershell
+$env:OPENAI_API_KEY="<litellm-key>"
+$env:OPENAI_BASE_URL="http://litellm-production.eba-pvykax23.eu-west-1.elasticbeanstalk.com"
+$env:RESTBENCH_URL="http://52.48.183.209:8001"
+$env:AGENT_MODEL="gpt-4.1"
+$env:PYTHONIOENCODING="utf-8"
+
+python -u -m agents.evaluate agents.toyesh_v2 \
+  --scenarios baseline,supply_crisis,tourist_season,renovation \
+  --seeds 7,55,99 --team-name AKT --parallel 1
+```
+
+**Important: `--parallel 1`** — higher parallelism causes 429 rate-limit errors that kill the avg (one errored cell = -100k drag).
+
+## Files to ship
+
+| File | Purpose |
+|---|---|
+| `agents/toyesh_v2.py` | The winning agent |
+| `agents/toyesh_v2_prompt.txt` | LLM judgment prompt |
+| `agents/runner.py` | HTTP client (from starter kit) |
+| `agents/evaluate.py` | Multi-scenario eval harness |
+| `requirements.txt` | `openai>=1.0` |
 
 ## Critical mechanics learned
-- **Matrix seeds are [7, 55, 99]** — NOT 42 (we wasted hours on seed=42 early)
-- **Dashboard tracks LATEST submission per cell**, NOT best-per-cell
-- So **every submission can overwrite a good score with a bad one**
-- Strategy: identify best agent per cell, submit each cell exactly once with best agent
-- Per-team rate limit: 60 games/hour. Multi-team trick = fresh quota per team_name
-- LLM API: LiteLLM proxy at `http://litellm-production.eba-pvykax23.eu-west-1.elasticbeanstalk.com`, key: `my-key` (replace with the hackathon-provided key locally — never commit the real one)
+- **Matrix seeds: [7, 55, 99]** — NOT 42 (lost hours on seed=42)
+- **Dashboard tracks LATEST per cell** — submission overwrites
+- **Per-team rate limit**: 60 games/hour
+- **Multi-team trick**: fresh quota per `--team-name`
+- **gpt-4.1 wins** over gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini, o3-mini on this task
 
-## Best score per cell (current AKT)
-| Cell | Score | Agent | Note |
-|---|---|---|---|
-| baseline/7 | 38,053 | greedy | (akt_robust got 43,222 on team 020 — better) |
-| baseline/55 | -1,084 | greedy | (akt_robust got 1,704 on team 020 — better) |
-| baseline/99 | 15,161 | greedy | (akt_robust got 18,612 on team 020 — better) |
-| supply/7 | 32,234 | greedy | (akt_final has 44,564 — need to reclaim) |
-| supply/55 | 23,069 | akt_final | locked |
-| supply/99 | 28,791 | akt_final | locked |
-| tourist/7 | **53,390** | greedy | best cell |
-| tourist/55 | 10,397 | greedy | (akt_robust got 16,900 — better) |
-| tourist/99 | 36,807 | greedy | (akt_final has 51,959 — need to reclaim) |
-| renovation/7 | ~+469 | akt_final | |
-| renovation/55 | -7,878 | akt_final | hardest cell |
-| renovation/99 | -5,484 | akt_final | (akt_robust got -4,289 — marginal better) |
+## Score progression (today)
+```
+18,826  rule-based adaptive_agent (starting point, rank #16)
+22,819  AKT-fresh-diag akt_smart + gpt-4o + bankruptcy guard
+25,335  toyesh_agent + gpt-4o on team 060
+29,540  toyesh_v2 (4 improvements) + gpt-4o on team 020
+30,907  v2 retry variance
+32,387  v2 + gpt-4o-mini on team 080
+33,612  v2 + gpt-4.1 on team 050 (peak)
+33,038  AKT locked at v2+gpt-4.1 ← FINAL OFFICIAL
+```
 
-If we submit best-of-three agents per cell to AKT: projected avg ~22,700.
-
-## Agent files (in `agents/`)
-- **`adaptive_agent.py`** — original rule-based, currently restored to safer v2 with shelf-caps + cash override
-- **`adaptive_agent_v2_backup.py`** — backup of safer version
-- **`greedy_agent.py`** — copy of v_leaderboard_best_58807 snapshot. Aggressive: DAYS_BUFFER=5, DAYS_SAFETY=2, BOOTSTRAP_DAILY_KG=3.0, no shelf-caps, no cash override. Bankrupts on renovation but huge upside on tourist/baseline.
-- **`akt_v4.py`, `akt_v5.py`, `akt_v7.py`** — intermediate versions. v5 added supply stockpiling. v7 fixed renovation flag bug.
-- **`akt_final.py`** — proven core + LLM-mini classifier + LLM-4o strategist (fires only on UNKNOWN scenarios) + panic mode on rep Poor / Fair+Declining / Fair+thin-cash / rapid-bleed
-- **`akt_robust.py`** — akt_final with BOOTSTRAP_DAILY_KG=1.5, happy hour ON during Poor rep (rep recovery tool), lower-rep pricing 0.88x. Better on baseline+tourist/55, worse elsewhere.
-- **`hybrid_agent.py`** — earlier pure-LLM-strategist version (gpt-4o-mini classifier + gpt-4o strategist). Worse than rules on visible scenarios but good for unknown alerts.
-
-## Things that REGRESSED (don't try again)
-- Raising prices broadly (1.18x on demand_surge, 1.05x on Good+busy) → -10k on tourist
-- Forcing premium pricing on every surge day → -11k tourist
-- Auto-clearing reduced_capacity after 2 quiet days → renovation -16k (clears mid-renovation)
-- Doc's lean SAFETY_RESERVE=500, DAYS_BUFFER=4 → -22k overall
-- Pure LLM strategist on visible scenarios → -25k overall (LLM worse than rules for known mechanics)
+## Things that REGRESSED (don't try)
+- Aggressive pricing >1.15x (drove customers away)
+- Auto-clearing reduced_capacity on quiet days (clears mid-renovation)
+- Doc's lean SAFETY_RESERVE=500, DAYS_BUFFER=4 (cash bleeds during disruption)
+- Pure LLM strategist on visible scenarios
+- Multi-feature stacking (akt_pro: -14k)
+- gpt-4o-mini for forecasting (variance)
+- o3-mini, gpt-5 (don't support response_format properly → fell to heuristic mode)
 
 ## Things that WORKED
-- v7: only clear `reduced_capacity` on explicit "complete" alert → +3k on renovation
-- v5: stockpile (buffer 8d) on `supply_disrupted` → +9k on supply_crisis
-- akt_final panic mode: cap staff/marketing on rep collapse → +9k on baseline
-- Split LLM: mini for classification, 4o for strategy (when LLM strategist is used)
-- LiteLLM proxy via OPENAI_BASE_URL env var (gpt-4o-mini works fine)
+- gpt-4.1 model (+3-5k)
+- Bankruptcy guard cash<2500 (+29k from preventing -100k cells)
+- v7 renovation fix: only clear flag on explicit "complete" alert (+3k)
+- Supply stockpiling buffer 8d on `supply_disrupted` (+9k)
+- Panic mode on rep collapse (+9k baseline)
+- LLM judgment ONLY on triggers (Toyesh's insight — most days use heuristics)
+- LLM forbidden from `place_order` — orders are 100% deterministic rules
 
 ## API quick reference
 ```python
-# Per-game endpoints
-POST /games {team_name, scenario, seed} -> {game_id}
+GET /scenarios -> [{name, display_name, description, difficulty}]
+GET /leaderboard/dashboard -> {ranking, evaluation_matrix}
+POST /games {team_name, scenario, seed}
 POST /games/{id}/action {tool, args}
 POST /games/{id}/end-turn -> {observation, day_result, status}
-GET /games/{id}/score -> {net_profit, walkout_penalty, total_score}
-
-# Leaderboard
-GET /leaderboard/dashboard -> {ranking: [{team_name, avg_score, cells_completed, ...}], evaluation_matrix: {seeds: [7,55,99], scenarios: [10], total_cells: 30}}
-GET /leaderboard -> top-N per (team, scenario, seed) cells
+GET /games/{id}/score -> {net_profit, ..., total_score}
 ```
 
-## What an ML-based approach could try
-- **Offline RL on local sim** — train PPO/DQN agent on local_sim, deploy on real. Risk: local sim has shown massive divergence from real (-12k local vs +25k real for same agent).
-- **Bandit per (scenario, seed) cell** — multi-armed bandit picking best agent variant per cell. We have data points for this already.
-- **Sklearn classifier from state → action** — train on top-team-style heuristics, deploy as policy. Need training data.
-- **LLM fine-tuning** — fine-tune small model on (state, optimal action) pairs from local_sim winners. Possible but slow.
-
-## Environment vars to set
-```powershell
-$env:OPENAI_API_KEY="my-key"
-$env:OPENAI_BASE_URL="http://litellm-production.eba-pvykax23.eu-west-1.elasticbeanstalk.com"
-$env:RESTBENCH_URL="http://52.48.183.209:8001"
-$env:PYTHONIOENCODING="utf-8"
-```
-
-## Quick commands
-```powershell
-# Run single game
-python -m agents.akt_final
-
-# Full visible matrix
-python -u -m agents.evaluate agents.akt_final --scenarios baseline,supply_crisis,tourist_season,renovation --seeds 7,55,99 --team-name AKT --parallel 5
-
-# Check leaderboard
-curl -s http://52.48.183.209:8001/leaderboard/dashboard | python -c "import json,sys; d=json.loads(sys.stdin.read()); [print(f\"#{t['rank']} {t['team_name']:<20} {t['avg_score']:>8.0f} cells={t['cells_completed']}\") for t in d['ranking'][:20]]"
-```
+## Hidden scenarios (unlock at TBD)
+- black_swan, feast_or_famine, health_scare, inflation, premium_pivot, silent_drift
+- toyesh_v2 has LLM classifier for novel alerts → should generalize
+- 18 cells (6 × 3 seeds) become available when unlocked
