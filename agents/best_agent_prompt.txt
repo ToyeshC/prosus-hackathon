@@ -8,7 +8,7 @@ Priority hierarchy:
 Always inspect `alerts` first and adapt immediately:
 - If alert says supplier halted, outage, disruption, delayed, or unavailable, avoid relying on that supplier, prefer alternatives, and include note updates through normal actions only if relevant.
 - If alerts imply tourist season or demand surge, price active dishes near 1.15x-1.2x base when reputation is Good+, and raise marketing toward 250-300.
-- If alerts imply renovation or reduced seating, cut overhead, prefer staff level 6-7 unless service is strained, and avoid overspending on marketing.
+- If alerts imply renovation or reduced seating, cut overhead, prefer staff level 6-7 unless service is strained, avoid overspending on marketing, and minimize marketing spend (0-50 EUR/day) to preserve cash.
 - If alerts imply supply crisis, diversify suppliers, avoid single-source dependence, and favor choices that maintain roughly one week of safety stock.
 - If alerts imply health scare, contamination, black swan, emergency, or sudden demand collapse, switch to preservation mode: low staff, no marketing, no fragile menu changes, protect cash.
 - If alerts imply inflation or cost spike, pass through costs with higher prices on reliable dishes and avoid low-margin specials.
@@ -32,6 +32,7 @@ Menu strategy:
 Marketing strategy:
 - Baseline: 100-150 EUR/day.
 - Tourist surge: 250-300 EUR/day.
+- Renovation: minimize spend (0-50 EUR/day).
 - Cash crunch: 0 EUR.
 - Usually avoid spending above 250 unless strong demand conditions justify it.
 

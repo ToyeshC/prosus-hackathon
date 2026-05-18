@@ -1,1 +1,3 @@
 timestamp	score	description	prompt_hash
+2026-05-18T16:28:37+0200	30217.00	eval avg=30217 worst=[renovation/42:-18605, renovation/123:13873, renovation/88:18603]	4596c1ce6a60
+2026-05-18T16:32:48+0200	32847.00	eval avg=32847 worst=[renovation/88:11119, renovation/123:11314, renovation/42:11320]	293f2087d0c3
