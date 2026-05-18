@@ -10,6 +10,10 @@ Always inspect `alerts` first and adapt immediately:
 - If alerts imply tourist season or demand surge, price active dishes near 1.15x-1.2x base when reputation is Good+, and raise marketing toward 250-300.
 - If alerts imply renovation or reduced seating, cut overhead, prefer staff level 6-7 unless service is strained, and avoid overspending on marketing.
 - If alerts imply supply crisis, diversify suppliers, avoid single-source dependence, and favor choices that maintain roughly one week of safety stock.
+- If alerts imply health scare, contamination, black swan, emergency, or sudden demand collapse, switch to preservation mode: low staff, no marketing, no fragile menu changes, protect cash.
+- If alerts imply inflation or cost spike, pass through costs with higher prices on reliable dishes and avoid low-margin specials.
+- If alerts imply premium shift, VIP traffic, or critics, favor best dishes, higher prices, and reputation protection over discounting.
+- If demand drifts down without explicit alerts, assume silent drift: mild price relief, modest marketing, stable quality, and low waste.
 
 Pricing strategy:
 - Friday-Sunday: usually raise prices 5-10%.
@@ -23,6 +27,7 @@ Menu strategy:
 - Drop dishes whose main ingredient is unavailable, repeatedly stocking out, or close to expiry if better substitutes exist.
 - Do not rotate menu aggressively during a crisis; new dishes have learning curve costs.
 - Preserve stable, reliable dishes when supply chain is stressed.
+- In preservation scenarios, prefer 5 reliable dishes to reduce waste.
 
 Marketing strategy:
 - Baseline: 100-150 EUR/day.
@@ -34,6 +39,7 @@ Happy hour strategy:
 - Use on slow days, especially Monday or Tuesday, or in bad weather.
 - Skip if reputation is already Excellent.
 - Never plan for more than 3 consecutive days.
+- Avoid happy hour in tourist, premium, inflation, or supply-constrained situations.
 
 Daily special strategy:
 - Prefer highest-margin reliable dish on active menu.

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ MODEL = os.getenv("AGENT_MODEL", "openai/gpt-4.1-mini")
 API_BASE = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
 PROMPT_FILE = Path(__file__).with_name("best_agent_prompt.txt")
 NOTE_LIMIT = 4000
+ARTIFACTS_DIR = Path(__file__).resolve().parent.parent / "artifacts"
 DAY_NAMES = [
     "Monday",
     "Tuesday",
@@ -46,6 +49,69 @@ class OrderCandidate:
     @property
     def cost(self) -> float:
         return self.quantity_kg * self.unit_price
+
+
+class DevConsole:
+    def __init__(self) -> None:
+        self.path: Path | None = None
+        self.entries: list[dict[str, Any]] = []
+        self.meta: dict[str, Any] = {}
+
+    def start(self, *, scenario: str, seed: int, team_name: str, model: str) -> None:
+        ARTIFACTS_DIR.mkdir(exist_ok=True)
+        stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        stem = f"{team_name}_{scenario}_{seed}_{stamp}"
+        self.path = ARTIFACTS_DIR / f"{stem}.jsonl"
+        self.entries = []
+        self.meta = {
+            "scenario": scenario,
+            "seed": seed,
+            "team_name": team_name,
+            "model": model,
+            "started_at": stamp,
+        }
+
+    def record(self, entry: dict[str, Any]) -> None:
+        self.entries.append(entry)
+        if self.path is not None:
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
+
+    def finish(self, result: dict[str, Any]) -> None:
+        if self.path is None:
+            return
+        html_path = self.path.with_suffix(".html")
+        score = result.get("score", {})
+        header = (
+            f"<h1>Relay Dev Console</h1>"
+            f"<p>scenario={html.escape(str(self.meta.get('scenario')))} "
+            f"seed={html.escape(str(self.meta.get('seed')))} "
+            f"score={html.escape(str(score.get('total_score')))} "
+            f"net_profit={html.escape(str(score.get('net_profit')))}</p>"
+        )
+        rows = []
+        for entry in self.entries:
+            rows.append(
+                "<div class='card'>"
+                f"<div class='day'>Day {html.escape(str(entry.get('day')))} "
+                f"{html.escape(str(entry.get('day_of_week')))}</div>"
+                f"<div class='reason'>{html.escape(entry.get('reasoning', ''))}</div>"
+                f"<pre>{html.escape(json.dumps(entry, indent=2))}</pre>"
+                "</div>"
+            )
+        page = (
+            "<html><head><meta charset='utf-8'><title>Relay Dev Console</title>"
+            "<style>body{background:#0b0f0d;color:#d9fbe5;font-family:ui-monospace,monospace;"
+            "padding:24px} .card{border:1px solid #1f5f3b;background:#101714;padding:16px;"
+            "margin:16px 0;border-radius:8px} .day{color:#7cf2a1;font-size:18px;margin-bottom:8px}"
+            " .reason{color:#f5d98b;margin-bottom:8px} pre{white-space:pre-wrap;word-break:break-word;"
+            "color:#c7d4cd}</style></head><body>"
+            + header + "".join(rows) + "</body></html>"
+        )
+        html_path.write_text(page, encoding="utf-8")
+
+
+DEV_CONSOLE = DevConsole()
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -389,6 +455,55 @@ def normalize_action(action: Any) -> dict[str, Any] | None:
     if not isinstance(tool, str) or not isinstance(args, dict):
         return None
     return {"tool": tool, "args": args}
+
+
+def summarize_reasoning(
+    observation: dict[str, Any],
+    notes: dict[str, Any],
+    safety_actions: list[dict[str, Any]],
+    llm_actions: list[dict[str, Any]],
+    final_actions: list[dict[str, Any]],
+) -> str:
+    service_summary = observation.get("service_summary") or {}
+    unavailable = list((service_summary.get("dishes_unavailable_at") or {}).keys())
+    chunks = [
+        f"scenario={detect_scenario(observation, notes)}",
+        f"cash={safe_float(observation.get('cash')):.0f}",
+        f"trend={observation.get('customer_trend')}",
+        f"rep={observation.get('reputation_band')}",
+        f"walkouts={service_summary.get('walkout_band', 'None')}",
+        f"stockouts={','.join(unavailable[:3]) or 'none'}",
+        f"safety={len(safety_actions)}",
+        f"llm={len(llm_actions)}",
+        f"actions={len(final_actions)}",
+    ]
+    return " | ".join(chunks)
+
+
+def record_turn(
+    observation: dict[str, Any],
+    notes: dict[str, Any],
+    safety_actions: list[dict[str, Any]],
+    llm_actions: list[dict[str, Any]],
+    final_actions: list[dict[str, Any]],
+) -> None:
+    service_summary = observation.get("service_summary") or {}
+    DEV_CONSOLE.record({
+        "day": observation.get("day"),
+        "day_of_week": observation.get("day_of_week"),
+        "reasoning": summarize_reasoning(observation, notes, safety_actions, llm_actions, final_actions),
+        "cash": observation.get("cash"),
+        "reputation_band": observation.get("reputation_band"),
+        "customer_trend": observation.get("customer_trend"),
+        "alerts": observation.get("alerts", []),
+        "walkout_band": service_summary.get("walkout_band"),
+        "covers": service_summary.get("total_covers"),
+        "dishes_unavailable_at": service_summary.get("dishes_unavailable_at"),
+        "notes": notes,
+        "safety_actions": safety_actions,
+        "llm_actions": llm_actions,
+        "final_actions": final_actions,
+    })
 
 
 def action_key(action: dict[str, Any]) -> tuple[str, str]:
@@ -835,6 +950,7 @@ def strategy(observation: dict[str, Any], day: int) -> list[dict[str, Any]]:
     llm_actions = filter_llm_actions(observation, notes, safety_actions, llm_actions, safety_meta)
     actions = safety_actions + llm_actions
     actions.append(save_notes_action(observation, notes, actions))
+    record_turn(observation, notes, safety_actions, llm_actions, actions)
     return actions
 
 
@@ -848,7 +964,13 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Using model: {MODEL}")
-    run_game(
+    DEV_CONSOLE.start(
+        scenario=args.scenario,
+        seed=args.seed,
+        team_name=args.team_name,
+        model=MODEL,
+    )
+    result = run_game(
         strategy,
         base_url=args.url,
         team_name=args.team_name,
@@ -856,6 +978,7 @@ def main() -> None:
         seed=args.seed,
         verbose=not args.quiet,
     )
+    DEV_CONSOLE.finish(result)
 
 
 if __name__ == "__main__":
