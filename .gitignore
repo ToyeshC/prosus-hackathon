@@ -21,3 +21,14 @@ stress_test.py
 test_hackathon_readiness.py
 test_isolation.py
 agents/smart_agent.py
+
+# AKT team additions
+agents/versions/
+*.pdf
+.openai_key
+.openai_base_url
+
+# Override the global ignores for files we DO want to ship
+!agents/research.py
+!agents/version_log.jsonl
+!agents/autoresearch_log.jsonl
